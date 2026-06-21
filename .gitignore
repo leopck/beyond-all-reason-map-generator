@@ -1,0 +1,11 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+# WASM build artifacts (committed under public/ once built)
+emsdk
+SpringMapConvNG
+*.wasm.tmp

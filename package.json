@@ -1,0 +1,22 @@
+{
+  "name": "bar-map-generator",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Procedural map generator for Beyond All Reason (BAR / Spring RTS SMF). Pure client-side JS; outputs a playable .sd7 via in-browser WASM MapConv.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --host"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "pako": "^2.1.0",
+    "simplex-noise": "^4.0.3"
+  },
+  "devDependencies": {
+    "@types/pako": "^2.0.4",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}
