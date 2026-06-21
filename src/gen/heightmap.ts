@@ -118,12 +118,14 @@ export function generateHeightmap(
   symmetrizeField(height, W, H, worldElmos, terrainSymmetry(params));
 
   // Water level must be computed BEFORE limitSlopes so we know the full elmo
-  // range (which includes the negative underwater portion).
+  // range (which includes the negative underwater portion). The terrain TYPE
+  // sets the base water fraction (a "water/naval" map is mostly sea, "land" is
+  // mostly land); the Water-amount knob fine-tunes within that band.
   let waterLevelNorm: number;
   if (params.terrainType === 'metal' || params.terrainType === 'air') {
     waterLevelNorm = 0;
   } else {
-    waterLevelNorm = sampleQuantile(height, params.seaLevel);
+    waterLevelNorm = sampleQuantile(height, effectiveSeaQuantile(params));
   }
 
   // Total elmo range = maxHeight - minHeight.
@@ -142,16 +144,15 @@ export function generateHeightmap(
   // adjacent-vertex slope at MAX_SLOPE_DEG.
   const square = 8;
   const maxSlopeDeg = envNum('BARGEN_MAXSLOPE', 34); // ~34° steepest face
-  const smoothPasses = envNum('BARGEN_SMOOTH', 40);  // genuine low-pass → flat walkable plains
+  // Light low-pass only. With 4 octaves the terrain has little high-frequency
+  // noise to begin with, so a heavy blur (the old 40 passes) just dissolved the
+  // terrain-type character — coastlines, island gaps, water basins — into one
+  // uniform mush. 14 passes removes residual bumps while keeping islands islands.
+  const smoothPasses = envNum('BARGEN_SMOOTH', 14);
   if (params.terrainType !== 'metal' && params.terrainType !== 'air') {
-    // Genuine low-pass: smooth WITHOUT re-normalizing. Re-normalizing would
-    // stretch the field straight back to the full [0,1] range and undo all the
-    // amplitude reduction — the broad relief would stay ~45°. By keeping the
-    // smoothed (compressed) amplitude we get rolling hills instead of a
-    // crumpled-paper field where every face is at the slope cap.
     smoothErosion(height, W, H, smoothPasses, 0.5);
     // re-derive water level on the smoothed field (smoothing shifts the median)
-    waterLevelNorm = sampleQuantile(height, params.seaLevel);
+    waterLevelNorm = sampleQuantile(height, effectiveSeaQuantile(params));
   }
   const totalElmoRange2 = waterLevelNorm > 0 && waterLevelNorm < 1
     ? params.maxHeight / (1 - waterLevelNorm)
@@ -164,6 +165,24 @@ export function generateHeightmap(
   void totalElmoRange;
 
   return { height, waterLevelNorm };
+}
+
+/**
+ * Water-coverage quantile per terrain type. The type sets the base fraction of
+ * the map that sits below sea level; the seaLevel knob (0..0.8) fine-tunes it.
+ * This is what actually makes land / islands / water / mixed look different.
+ */
+function effectiveSeaQuantile(params: MapParams): number {
+  const s = params.seaLevel; // default 0.25
+  let q: number;
+  switch (params.terrainType) {
+    case 'land':    q = s * 0.5;        break; // mostly land (~0.12)
+    case 'islands': q = 0.34 + s * 0.7; break; // distinct islands (~0.51)
+    case 'water':   q = 0.5 + s * 0.6;  break; // mostly sea (~0.65)
+    case 'mixed':   q = 0.18 + s * 0.7; break; // balanced (~0.35)
+    default:        q = s;              break;
+  }
+  return Math.max(0.03, Math.min(0.88, q));
 }
 
 /** Optional numeric override from env (Node only; ignored in browser). */

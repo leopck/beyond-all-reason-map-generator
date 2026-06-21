@@ -30,7 +30,7 @@ const execFileP = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const HOME = os.homedir();
-const VALIDATOR = path.join(HOME, 'bargen', 'parsertest', 'validate.mjs');
+const VALIDATOR = process.env.VALIDATOR || path.join(HOME, 'bargen', 'parsertest', 'validate.mjs');
 // official BAR map_blueprint scaffold (LuaGaia FeaturePlacer, tree FeatureDef +
 // model + textures, maphelper, mapconfig, splat material DDS) — every map is
 // assembled on top of this so structure matches a real, working BAR map.
@@ -130,12 +130,12 @@ async function runCompile(zipBuf) {
     const minimapPng = await findFile(srcRoot, 'minimap.png');
     const metalPng = await findFile(srcRoot, 'metalmap.png');
     const typePng = await findFile(srcRoot, 'typemap.png');
-    const vegPng = await findFile(srcRoot, 'vegetationmap.png');
     const mapinfoPath = await findFile(srcRoot, 'mapinfo.lua');
     const setLuaPath = await findFile(srcRoot, 'set.lua');
     const startboxPath = await findFile(srcRoot, 'map_startboxes.lua');
     const metalLayoutPath = await findFile(srcRoot, 'map_metal_layout.lua');
     const splatDistrPath = await findFile(srcRoot, 'splat_distribution.png');
+    const grassDistPath = await findFile(srcRoot, 'grassdist.tga');
     if (!heightPng || !texturePng || !metalPng || !typePng || !mapinfoPath) {
       throw new Error('source bundle missing required files '
         + `(height=${!!heightPng} tex=${!!texturePng} metal=${!!metalPng} type=${!!typePng} mapinfo=${!!mapinfoPath})`);
@@ -160,7 +160,8 @@ async function runCompile(zipBuf) {
       '-ct', String(CT),
     ];
     if (minimapPng) args.push('-minimap', minimapPng);
-    if (vegPng) args.push('-v', vegPng);
+    // grass is now the smooth custom.grassConfig.grassDistTGA system (staged below),
+    // not the engine's blocky SMF veg map, so we no longer pass -v.
     log('compiler:', COMPILER, args.join(' '));
     const env = { ...process.env, LD_LIBRARY_PATH: LIBDIR };
     try {
@@ -203,6 +204,8 @@ async function runCompile(zipBuf) {
     if (metalLayoutPath) await fsp.copyFile(metalLayoutPath, path.join(stageMapcfg, 'map_metal_layout.lua'));
     // per-map splat distribution → maps/ (materials already provided by scaffold)
     if (splatDistrPath) await fsp.copyFile(splatDistrPath, path.join(stageMaps, 'splat_distribution.png'));
+    // smooth grass density map (custom.grassConfig.grassDistTGA)
+    if (grassDistPath) await fsp.copyFile(grassDistPath, path.join(stageMaps, 'grassdist.tga'));
     // lobby/menu preview image (real BAR maps ship maps/mini.png) — reuse our minimap
     if (minimapPng) await fsp.copyFile(minimapPng, path.join(stageMaps, 'mini.png'));
 

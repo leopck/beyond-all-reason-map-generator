@@ -158,3 +158,15 @@ export function encodeGray8Png(width: number, height: number, data: Uint8Array):
   const rows: RowProvider = (y) => data.subarray(y * width, (y + 1) * width);
   return encodePngBuffer(width, height, 8, 0, data);
 }
+
+/** 8-bit grayscale uncompressed TGA, top-left origin (for BAR grassDistTGA). */
+export function encodeTgaGray(width: number, height: number, data: Uint8Array): Uint8Array {
+  const out = new Uint8Array(18 + width * height);
+  out[2] = 3; // image type: uncompressed grayscale
+  out[12] = width & 0xff; out[13] = (width >> 8) & 0xff;
+  out[14] = height & 0xff; out[15] = (height >> 8) & 0xff;
+  out[16] = 8; // bits per pixel
+  out[17] = 0x20; // top-left origin (matches our row-major top-down data)
+  out.set(data, 18);
+  return out;
+}

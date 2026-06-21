@@ -1,0 +1,9 @@
+{
+  "name": "bargen-validator",
+  "private": true,
+  "type": "module",
+  "description": "spring-map-parser closed-loop validator for compiled .sd7 maps",
+  "dependencies": {
+    "spring-map-parser": "^6.4.2"
+  }
+}

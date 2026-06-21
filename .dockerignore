@@ -1,0 +1,15 @@
+node_modules
+dist
+.git
+.gitignore
+*.log
+debug-*.ts
+debug-*.mjs
+debug-*.png
+debug-*.sd7
+debug-out
+_bar_research
+maptextures
+**/*.sd7
+.vscode
+.idea

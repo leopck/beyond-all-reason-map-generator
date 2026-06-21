@@ -12,6 +12,7 @@ import {
   encodePngStreaming,
   encodePngBuffer,
   encodeGray8Png,
+  encodeTgaGray,
   type RowProvider,
 } from './png';
 import {
@@ -111,19 +112,19 @@ export async function buildBundle(
   // SpringMapConvNG -v writes this into the SMF grass extra-header so the engine
   // renders 3D grass blades. Grass grows on flat lowland/midland of green biomes,
   // gated by moisture noise so it's patchy and natural.
+  // Grass via BAR's custom.grassConfig.grassDistTGA system (what real maps use,
+  // e.g. crater_islands) — a higher-res, SMOOTH-gradient density map. The engine's
+  // native SMF grass map (the old `-v` path) is only mapx/4 and binary, which
+  // renders as pixelated 32-elmo blocks. This grassdist is 512² with soft
+  // density falloff at slopes and dry edges → smooth grass.
   const GRASS_BIOMES = new Set(['temperate', 'alien', 'arctic']);
   if (GRASS_BIOMES.has(data.params.biome) &&
       data.params.terrainType !== 'metal' && data.params.terrainType !== 'air') {
-    const gW = dims.xsize / 4;
-    const gH = dims.xsize / 4;
-    const cell = dims.worldElmos / gW; // elmos per grass cell (~32)
+    const gW = 512, gH = 512;
+    const cell = dims.worldElmos / gW;
     const grass = new Uint8Array(gW * gH);
     const ctx = data.shade;
-    // CONTIGUOUS coverage: grass fills whole flat-green regions instead of a
-    // per-cell on/off checkerboard (which renders as pixelated grass blocks).
-    // Only large-scale dry patches (low-frequency moisture) and steep cells are
-    // cleared, so boundaries are smooth and rare rather than cell-grid aligned.
-    const moistFreq = 1.5 / dims.worldElmos; // ~5500-elmo wavelength → broad patches
+    const moistFreq = 1.5 / dims.worldElmos;
     for (let z = 0; z < gH; z++) {
       for (let x = 0; x < gW; x++) {
         const ex = (x + 0.5) * cell;
@@ -134,14 +135,15 @@ export async function buildBundle(
         const hN = sampleHeightElmo(data.height, dims, ex + cell, ez);
         const hE = sampleHeightElmo(data.height, dims, ex, ez + cell);
         const slope = Math.max(Math.abs(h - hN), Math.abs(h - hE)) * (data.maxHeight - data.minHeight) / cell;
-        if (slope > 0.55) continue; // bare steep ground, no grass
-        // broad dry regions get no grass; everywhere else is fully grassed
-        const m = (ctx.moist.raw2(ex * moistFreq, ez * moistFreq) + 1) / 2;
-        if (m < 0.3 * (1 - data.params.grassCoverage)) continue;
-        grass[z * gW + x] = 255;
+        // smooth density: full on flat ground, fading out by ~0.55 rise:run
+        const slopeFade = Math.max(0, Math.min(1, (0.55 - slope) / 0.25));
+        const m = (ctx.moist.raw2(ex * moistFreq, ez * moistFreq) + 1) / 2; // broad patches
+        const moistFade = Math.max(0, Math.min(1, (m - 0.2) / 0.4));
+        const density = slopeFade * (0.5 + 0.5 * moistFade) * data.params.grassCoverage;
+        grass[z * gW + x] = Math.round(Math.max(0, Math.min(1, density)) * 255);
       }
     }
-    folder.file('vegetationmap.png', encodeGray8Png(gW, gH, grass));
+    folder.file('grassdist.tga', encodeTgaGray(gW, gH, grass));
   }
 
   // --- SSMF splat distribution (per-map; the detail-normal materials it blends

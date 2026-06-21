@@ -96,6 +96,8 @@ export function mapinfoLua(data: MapData): string {
   const { params, dims } = data;
   const env = BIOME_ENV[params.biome] ?? BIOME_ENV.temperate;
   const hasWater = params.terrainType !== 'metal' && params.terrainType !== 'air';
+  // grassdist.tga is only emitted for green biomes on non-flat presets
+  const grass = hasWater && (params.biome === 'temperate' || params.biome === 'alien' || params.biome === 'arctic');
   const name = uniqueMapName(params); // includes content hash → defeats engine map cache
   const file = sanitize(name);        // smf/smt basename (matches server staging)
   return [
@@ -207,6 +209,20 @@ export function mapinfoLua(data: MapData): string {
     '      moveSpeeds = { tank = 1.0, kbot = 1.0, hover = 1.0, ship = 1.0 },',
     '    },',
     '  },',
+    ...(grass ? [
+    '',
+    '  -- BAR smooth-grass system (custom.grassConfig.grassDistTGA) — the higher-res',
+    '  -- gradient density map renders far smoother than the engine SMF grass blocks.',
+    '  custom = {',
+    '    grassConfig = {',
+    '      grassDistTGA = "maps/grassdist.tga",',
+    '      grassMaxSize = 2.0,',
+    '      grassMinSize = 0.8,',
+    '      grassBladeColorTex = "maps/grass_field_dry.dds.cached.dds",',
+    '      grassShaderParams = { MAPCOLORFACTOR = 0.4, MAPCOLORBASE = 0.6 },',
+    '    },',
+    '  },',
+    ] : []),
     '}',
     'return mapinfo',
     '',

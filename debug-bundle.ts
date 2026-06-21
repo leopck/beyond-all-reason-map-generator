@@ -7,7 +7,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { DEFAULT_PARAMS } from './src/params.ts';
 import { generateMap } from './src/gen/pipeline.ts';
 import {
-  encodeHeightmapPng, encodePngStreaming, encodePngBuffer, encodeGray8Png,
+  encodeHeightmapPng, encodePngStreaming, encodePngBuffer, encodeGray8Png, encodeTgaGray,
   type RowProvider,
 } from './src/export/png.ts';
 import { mapinfoLua, metalLayoutLua, startBoxesLua, featurePlacerSetLua } from './src/export/lua.ts';
@@ -53,11 +53,10 @@ for (let z = 0; z < dims.typeH; z++)
   }
 writeFileSync(`${out}/typemap.png`, encodeGray8Png(dims.typeW, dims.typeH, typemap));
 
-// vegetation/grass map — CONTIGUOUS fill (mirrors bundle.ts)
-const gW = dims.xsize / 4, gH = dims.xsize / 4;
+// smooth grassdist.tga (512², gradient density — mirrors bundle.ts)
+const gW = 512, gH = 512;
 const cell = dims.worldElmos / gW;
 const grass = new Uint8Array(gW * gH);
-let grassCells = 0;
 const moistFreq = 1.5 / dims.worldElmos;
 for (let z = 0; z < gH; z++) for (let x = 0; x < gW; x++) {
   const ex = (x + 0.5) * cell, ez = (z + 0.5) * cell;
@@ -67,13 +66,12 @@ for (let z = 0; z < gH; z++) for (let x = 0; x < gW; x++) {
   const hN = sampleHeightElmo(data.height, dims, ex + cell, ez);
   const hE = sampleHeightElmo(data.height, dims, ex, ez + cell);
   const slope = Math.max(Math.abs(h - hN), Math.abs(h - hE)) * (data.maxHeight - data.minHeight) / cell;
-  if (slope > 0.55) continue;
+  const slopeFade = Math.max(0, Math.min(1, (0.55 - slope) / 0.25));
   const m = (data.shade.moist.raw2(ex * moistFreq, ez * moistFreq) + 1) / 2;
-  if (m < 0.3 * (1 - data.params.grassCoverage)) continue;
-  grass[z * gW + x] = 255; grassCells++;
+  const moistFade = Math.max(0, Math.min(1, (m - 0.2) / 0.4));
+  grass[z * gW + x] = Math.round(Math.max(0, Math.min(1, slopeFade * (0.5 + 0.5 * moistFade) * data.params.grassCoverage)) * 255);
 }
-writeFileSync(`${out}/vegetationmap.png`, encodeGray8Png(gW, gH, grass));
-console.log(`vegetation map ${gW}x${gH}: ${grassCells} grass cells (${(grassCells / (gW * gH) * 100).toFixed(1)}%) [contiguous]`);
+writeFileSync(`${out}/grassdist.tga`, encodeTgaGray(gW, gH, grass));
 
 // per-map splat distribution (R=cliff G=pebbles B=grass A=earth)
 const distr = makeSplatDistribution(data, dims, 512);
