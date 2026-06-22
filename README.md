@@ -11,6 +11,12 @@ The app draws terrain, water, metal spots, start boxes, trees and grass from a s
 tunable knobs, previews them live, and produces a real BAR map that loads in-game —
 terrain, textures, 3D trees, grass, metal, geo and a lobby preview included.
 
+Website generator:
+![website](./docs/web.png)
+
+Game loaded map:
+![map game](./docs/game01.png)
+
 ---
 
 ## Quick start (Docker — recommended)
