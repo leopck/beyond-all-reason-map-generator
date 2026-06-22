@@ -5,9 +5,33 @@ import { DEFAULT_PARAMS, type MapParams } from './params';
 import { generateMap } from './gen/pipeline';
 import { renderPreview, type PreviewToggles } from './ui/preview';
 import { renderKnobs } from './ui/knobs';
-import { buildBundle } from './export/bundle';
+import type { BundleProgress } from './export/bundle';
 import type { MapData } from './types';
 import './style.css';
+
+/**
+ * Build the source bundle in a Web Worker so the heavy texture encoding never
+ * blocks the UI (previously froze the page for ~30s). Generation is deterministic
+ * from `params`, so the worker reproduces the exact map the preview showed.
+ */
+function buildBundleAsync(
+  params: MapParams,
+  onProgress: (p: BundleProgress) => void,
+): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(new URL('./export/bundle.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+    worker.onmessage = (e: MessageEvent) => {
+      const m = e.data;
+      if (m.type === 'progress') onProgress({ stage: m.stage, y: m.y, h: m.h });
+      else if (m.type === 'done') { resolve(new Blob([m.buffer])); worker.terminate(); }
+      else if (m.type === 'error') { reject(new Error(m.message)); worker.terminate(); }
+    };
+    worker.onerror = (e) => { reject(new Error(e.message || 'worker failed')); worker.terminate(); };
+    worker.postMessage(params);
+  });
+}
 
 const app = document.getElementById('app')!;
 
@@ -94,9 +118,11 @@ document.getElementById('regen')!.addEventListener('click', () => scheduleRegen(
 
 document.getElementById('download-zip')!.addEventListener('click', async () => {
   if (!mapData) return;
+  const btn = document.getElementById('download-zip') as HTMLButtonElement;
   progressEl.hidden = false;
+  btn.disabled = true;
   try {
-    const blob = await buildBundle(mapData, (p) => {
+    const blob = await buildBundleAsync(mapData.params, (p) => {
       const pct = p.h > 0 ? (p.y / p.h) * 100 : 0;
       progressFill.style.width = pct.toFixed(1) + '%';
       progressLabel.textContent = `${p.stage} ${Math.round(pct)}%`;
@@ -105,6 +131,8 @@ document.getElementById('download-zip')!.addEventListener('click', async () => {
     progressLabel.textContent = 'Done ✓';
   } catch (e) {
     progressLabel.textContent = 'Error: ' + (e as Error).message;
+  } finally {
+    btn.disabled = false;
   }
 });
 
@@ -116,8 +144,8 @@ document.getElementById('download-sd7')!.addEventListener('click', async () => {
   btn.disabled = true;
   status.textContent = 'Packing source…';
   try {
-    // 1. build the source bundle (reuse Phase-1 emitter)
-    const blob = await buildBundle(mapData, (p) => {
+    // 1. build the source bundle off-thread (keeps the page responsive)
+    const blob = await buildBundleAsync(mapData.params, (p) => {
       const pct = p.h > 0 ? (p.y / p.h) * 100 : 0;
       progressFill.style.width = (pct / 2).toFixed(1) + '%';
       progressLabel.textContent = `packing ${p.stage} ${Math.round(pct)}%`;
