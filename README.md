@@ -1,6 +1,7 @@
 # BAR Procedural Map Generator
 
 > NOTE: The map generated has several bugs but the maps does generate and load into the game and it is playable but bugs are shown here
+> 
 > NOTE: The generator's tuner knobs for things like the tree placement or the metal points are not optimized, it's placed randomly too causing weird issues.
 
 Goal: Generate playable [Beyond All Reason](https://www.beyondallreason.info/) (Spring/Recoil
